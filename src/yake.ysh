@@ -54,6 +54,7 @@ proc _yake() {
   }
   if (taskToDo !== taskDone) {
     echo "Dependency cycle detected!"
+    # TODO: write an algorithm to actually find all cycles.
     exit 1
   }
 }
