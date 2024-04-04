@@ -32,6 +32,8 @@ proc _yake() {
       call queue->append(root)
     }
   }
+  var taskToDo = len(taskNumDependencies)
+  var taskDone = 0
   while (queue !== []) {
     var task_to_run = queue->pop()
     if (task_to_run in tasks) {
@@ -48,5 +50,10 @@ proc _yake() {
       echo "No rule to make $task_to_run"
       exit 1
     }
+    setvar taskDone += 1
+  }
+  if (taskToDo !== taskDone) {
+    echo "Dependency cycle detected!"
+    exit 1
   }
 }
