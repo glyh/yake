@@ -1,0 +1,17 @@
+#!/usr/bin/env ysh
+
+source yake.ysh
+
+M a b c {
+  echo 1 2 3
+}
+
+M b {
+  echo 2
+}
+
+M c {
+  echo 3
+}
+
+_yake

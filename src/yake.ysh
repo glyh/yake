@@ -1,0 +1,52 @@
+#!/usr/bin/env ysh
+
+module yake || return 0
+
+setglobal tasks = {}
+setglobal taskDependents = {}
+setglobal taskNumDependencies = {}
+proc M(target, ...dependencies ;;...options; code) {
+  setglobal tasks[target] = options
+  setglobal tasks[target]['code'] = code
+  for dependency in (dependencies) {
+    if (dependency === target) {
+      echo "Cycle dependency detected: $target depends on itself"
+      exit 1
+    }
+    if (dependency not in taskDependents) {
+      setglobal taskDependents[dependency] = [target]
+    } else {
+      call taskDependents[dependency]->append(target)
+    }
+    if (dependency not in taskNumDependencies) {
+      setglobal taskNumDependencies[dependency] = 0
+    }
+  } 
+  setglobal taskNumDependencies[target] = len(dependencies)
+}
+
+proc _yake() {
+  var queue = []
+  for root, dependenciesCnt in (taskNumDependencies) {
+    if (dependenciesCnt === 0) {
+      call queue->append(root)
+    }
+  }
+  while (queue !== []) {
+    var task_to_run = queue->pop()
+    if (task_to_run in tasks) {
+      eval (tasks[task_to_run].code)
+      if (task_to_run in taskDependents) {
+        for dependent in (taskDependents[task_to_run]) {
+          setglobal taskNumDependencies[dependent] -= 1
+          if (taskNumDependencies[dependent] === 0) {
+            call queue->append(dependent)
+          }
+        }
+      }
+    } else {
+      echo "No rule to make $task_to_run"
+      exit 1
+    }
+  }
+}
