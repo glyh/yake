@@ -38,6 +38,7 @@ proc _yake(; numJobs = 1) {
       # Ensure all dependency is satisfied
       for dependencySema in (taskDependenciesSema[task]) {
         sema-down (dependencySema)
+        sema-destroy (dependencySema)
       }
       # Ensure we have enough thread
       sema-down (jobSema)
@@ -51,4 +52,5 @@ proc _yake(; numJobs = 1) {
   }
   # TODO: deal with hanging issue
   wait
+  sema-destroy (jobSema)
 }
