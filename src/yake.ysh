@@ -2,7 +2,7 @@
 
 module yake || return 0
 
-source synch.ysh
+source $_this_dir/synch.ysh
 
 setglobal tasks = {}
 setglobal taskDependentsSema = {}

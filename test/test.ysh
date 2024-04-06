@@ -1,6 +1,6 @@
 #!/usr/bin/env ysh
 
-source yake.ysh
+source $_this_dir/../src/yake.ysh
 
 M a b c {
   echo 1 2 3
