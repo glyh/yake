@@ -2,59 +2,43 @@
 
 module yake || return 0
 
+source synch.ysh
+
 setglobal tasks = {}
-setglobal taskDependents = {}
-setglobal taskNumDependencies = {}
+setglobal taskDependentsSema = {}
+setglobal taskDependenciesSema = {}
+
 proc M(target, ...dependencies ;;...options; code) {
   setglobal tasks[target] = options
   setglobal tasks[target]['code'] = code
+  setglobal taskDependenciesSema[target] = {}
   for dependency in (dependencies) {
     if (dependency === target) {
       echo "Cycle dependency detected: $target depends on itself"
       exit 1
     }
-    if (dependency not in taskDependents) {
-      setglobal taskDependents[dependency] = [target]
-    } else {
-      call taskDependents[dependency]->append(target)
+    sema-new (0, &semaCur)
+    call taskDependenciesSema[target]->append(semaCur)
+    if (dependency not in tasks) {
+      setglobal taskDependentsSema[dependency] = []
+      setglobal tasks[dependency] = null # a place holder
     }
-    if (dependency not in taskNumDependencies) {
-      setglobal taskNumDependencies[dependency] = 0
-    }
+    call taskDependentsSema[dependency]->append(semaCur)
   } 
-  setglobal taskNumDependencies[target] = len(dependencies)
 }
 
-proc _yake() {
-  var queue = []
-  for root, dependenciesCnt in (taskNumDependencies) {
-    if (dependenciesCnt === 0) {
-      call queue->append(root)
-    }
-  }
-  var taskToDo = len(taskNumDependencies)
-  var taskDone = 0
-  while (queue !== []) {
-    var task_to_run = queue->pop()
-    if (task_to_run in tasks) {
-      eval (tasks[task_to_run].code)
-      if (task_to_run in taskDependents) {
-        for dependent in (taskDependents[task_to_run]) {
-          setglobal taskNumDependencies[dependent] -= 1
-          if (taskNumDependencies[dependent] === 0) {
-            call queue->append(dependent)
-          }
-        }
+proc _yake(; numJobs = 1) {
+  sema-new (numJobs, &jobSema)
+  for task, spec in (tasks) {
+    fork {
+      # Ensure we have enough thread
+      sema-down (jobSema)
+      # Ensure all dependency is satisfied
+      for dependencySema in (taskDependenciesSema[task]) {
+        sema-down (dependencySema)
       }
-    } else {
-      echo "No rule to make $task_to_run"
-      exit 1
+      eval 
+      sema-up (jobSema)
     }
-    setvar taskDone += 1
-  }
-  if (taskToDo !== taskDone) {
-    echo "Dependency cycle detected!"
-    # TODO: write an algorithm to actually find all cycles.
-    exit 1
   }
 }

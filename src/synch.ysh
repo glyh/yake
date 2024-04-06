@@ -1,0 +1,173 @@
+#!/usr/bin/env ysh
+
+module stdlib/synch || return 0
+
+############################
+### FIFO File Desriptors ###
+############################
+
+proc fifo-fd-new(; out_fd) {
+  # WARN: this section should be critical but for now it's not
+  # A solution may be retry on fail.
+  #====================
+  var fifo = $(mktemp -u)
+  mkfifo $fifo
+  #====================
+  exec {fd}<>$fifo
+  call out_fd->setValue(fd)
+}
+
+proc fifo-fd-destroy(; fd) {
+  var fifoFile = $(readlink /proc/$$/fd/$fd)
+  exec {fd}>&-
+  exec {fd}<&-
+  rm $fifoFile
+}
+
+#################
+### Semaphore ###
+#################
+
+proc sema-new(; value, out_sema) {
+  fifo-fd-new (&sema)
+  sema-up (sema, value)
+  call out_sema->setValue(sema)
+}
+
+proc sema-down(; sema) {
+  read <&$sema
+}
+
+proc sema-up(; sema, delta = 1) {
+  fork {
+    for _ in (0 .. delta) {
+      echo >&$sema
+    }
+  }
+}
+
+proc sema-destroy(; sema) {
+  fifo-fd-destroy (sema)
+}
+
+# NOTE: all synchronization primitives except semaphore and channels are implementation agnostic, meaning we may replace another implementation for semaphore in the future and all other synchronization primitives still work
+
+#############
+### Mutex ###
+#############
+
+proc mutex-new(; out_mutex) {
+  sema-new (1, out_mutex)
+} 
+
+proc mutex-acqure(; mutex) {
+  sema-down (mutex)
+}
+
+proc mutex-release(; mutex) {
+  sema-up (mutex)
+}
+
+proc mutex-destroy(; mutex) {
+  sema-destroy (mutex)
+}
+
+##############
+### RWLock ###
+##############
+# https://youtu.be/7zI_4CKk-3Y?t=205
+
+proc RW-lock-new(; out_lock) {
+  mutex-new (&counterLock)
+  mutex-new (&writeLock)
+  var counter = 0
+  call out_lock->setValue({
+    counter,
+    counterLock,
+    writeLock,
+  })
+} 
+
+proc RW-lock-read(; lock) {
+  mutex-acqure (lock.counterLock)
+  setvar lock.counter += 1
+  if (lock.counter === 1) {
+    # First reader should ensure no writer is present
+    mutex-acqure (lock.writeLock)
+  }
+  mutex-release (lock.counterLock)
+}
+
+proc RW-unlock-read(lock) {
+  mutex-acqure (lock.counterLock)
+  setvar lock.counter -= 1
+  if (lock.counter === 0) {
+    # First reader should ensure no writer is present
+    mutex-release (lock.writeLock)
+  }
+  mutex-release (lock.counterLock)
+}
+
+proc RW-lock-write(lock) {
+  mutex-acqure (lock.writeLock)
+}
+
+proc RW-unlock-write(lock) {
+  mutex-release (lock.writeLock)
+}
+
+################
+### FlexSema ###
+################
+# A semaphore that can hold negative values.
+
+proc flex-sema-new(; value, out_flex) {
+  sema-new (0, &sema)
+  RW-lock-new (&rwlock)
+  call out_flex->setValue({ sema, rwlock })
+} 
+
+proc flex-sema-down(; flex) {
+  sema-down (flex.sema)
+  read <&$sema
+}
+
+proc sema-up(; sema, delta = 1) {
+  fork {
+    for _ in (0 .. delta) {
+      echo >&$sema
+    }
+  }
+}
+
+proc sema-destroy(; sema) {
+  fifo-fd-destroy (sema)
+}
+
+
+###########################
+### ConditionalVariable ###
+###########################
+proc cond-var-new(; out_var) {
+  var mutex
+  mutex-new (&mutex)
+  sema-new (0, &sema)
+  call out_var->setValue({ mutex, sema })
+}
+
+proc cond-var-wait(cv) {
+  mutex-release (cv.mutex)
+  sema-down (cv.sema)
+  mutex-acqure (cv.mutex)
+}
+
+# WARN: this does not follow the strict semantic of conditional variable, but at least for my case it's usable. 
+proc cond-var-signal(cv) {
+  sema-up (cv.sema)
+}
+
+proc cond-var-destroy(cv) {
+  mutex-acqure (cv.mutex)
+  sema-destroy (cv.sema)
+  mutex-destroy (cv.mutex)
+}
