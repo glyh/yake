@@ -80,9 +80,8 @@ proc mutex-destroy(; mutex) {
 proc RW-lock-new(; out_lock) {
   mutex-new (&counterLock)
   mutex-new (&writeLock)
-  var counter = 0
   call out_lock->setValue({
-    counter,
+    counter: 0,
     counterLock,
     writeLock,
   })
@@ -115,35 +114,6 @@ proc RW-lock-write(lock) {
 proc RW-unlock-write(lock) {
   mutex-release (lock.writeLock)
 }
-
-################
-### FlexSema ###
-################
-# A semaphore that can hold negative values.
-
-proc flex-sema-new(; value, out_flex) {
-  sema-new (0, &sema)
-  RW-lock-new (&rwlock)
-  call out_flex->setValue({ sema, rwlock })
-} 
-
-proc flex-sema-down(; flex) {
-  sema-down (flex.sema)
-  read <&$sema
-}
-
-proc sema-up(; sema, delta = 1) {
-  fork {
-    for _ in (0 .. delta) {
-      echo >&$sema
-    }
-  }
-}
-
-proc sema-destroy(; sema) {
-  fifo-fd-destroy (sema)
-}
-
 
 ###########################
 ### ConditionalVariable ###

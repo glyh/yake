@@ -11,13 +11,17 @@ setglobal taskDependenciesSema = {}
 proc M(target, ...dependencies ;;...options; code) {
   setglobal tasks[target] = options
   setglobal tasks[target]['code'] = code
-  setglobal taskDependenciesSema[target] = {}
+  setglobal taskDependenciesSema[target] = []
+  if (not target in taskDependentsSema) {
+    setglobal taskDependentsSema[target] = []
+  }
   for dependency in (dependencies) {
     if (dependency === target) {
       echo "Cycle dependency detected: $target depends on itself"
       exit 1
     }
     sema-new (0, &semaCur)
+    # echo "$semaCur: $target <- $dependency"
     call taskDependenciesSema[target]->append(semaCur)
     if (dependency not in tasks) {
       setglobal taskDependentsSema[dependency] = []
@@ -31,14 +35,20 @@ proc _yake(; numJobs = 1) {
   sema-new (numJobs, &jobSema)
   for task, spec in (tasks) {
     fork {
-      # Ensure we have enough thread
-      sema-down (jobSema)
       # Ensure all dependency is satisfied
       for dependencySema in (taskDependenciesSema[task]) {
         sema-down (dependencySema)
       }
-      eval 
+      # Ensure we have enough thread
+      sema-down (jobSema)
+      echo "Executing task '$task':"
+      eval (spec.code)
+      for dependentSema in (taskDependentsSema[task]) {
+        sema-up (dependentSema)
+      }
       sema-up (jobSema)
     }
   }
+  # TODO: deal with hanging issue
+  wait
 }
