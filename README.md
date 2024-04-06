@@ -4,3 +4,7 @@
 - [x] Parallelization
 - [ ] Better cycle detection
 
+## Examples
+
+- [glyh/dots/dotsync](https://github.com/glyh/dots/blob/arch-hyprland-mechrevo/dotsync)
+
