@@ -1,6 +1,6 @@
 #!/usr/bin/env ysh
 
-module stdlib/synch || return 0
+source-guard stdlib/synch || return 0
 
 ############################
 ### FIFO File Desriptors ###
@@ -40,7 +40,7 @@ proc sema-down(; sema) {
 
 proc sema-up(; sema, delta = 1) {
   fork {
-    for _ in (0 .. delta) {
+    for _ in (0 ..< delta) {
       echo >&$sema
     }
   }

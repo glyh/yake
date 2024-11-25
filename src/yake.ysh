@@ -1,6 +1,6 @@
 #!/usr/bin/env ysh
 
-module yake || return 0
+source-guard yake || return 0
 
 source $_this_dir/synch.ysh
 
@@ -43,7 +43,7 @@ proc _yake(; numJobs = 1) {
       # Ensure we have enough thread
       sema-down (jobSema)
       echo "Executing task '$task':"
-      eval (spec.code)
+      call io->eval (spec.code)
       for dependentSema in (taskDependentsSema[task]) {
         sema-up (dependentSema)
       }
